@@ -225,7 +225,7 @@ public class PropertyRepository implements CrudRepository<Property, String> {
                 if(withChannels) {
                     MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
                     params.add(property.getName(), "*");
-                    property.setChannels(channelRepository.search(params).getChannels());
+                    property.setChannels(channelRepository.search(params).channels());
                 }
                 return Optional.of(property);
             } else {
@@ -330,7 +330,7 @@ public class PropertyRepository implements CrudRepository<Property, String> {
             BulkRequest.Builder br = new BulkRequest.Builder().refresh(Refresh.True);
             MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
             params.add(propertyName, "*");
-            List<Channel> channels = channelRepository.search(params).getChannels();
+            List<Channel> channels = channelRepository.search(params).channels();
             while (channels.size() > 0) {
                 for (Channel channel : channels) {
                     channel.removeProperty(
@@ -360,7 +360,7 @@ public class PropertyRepository implements CrudRepository<Property, String> {
 
                 }
                 params.set("~search_after", channels.get(channels.size() - 1).getName());
-                channels = channelRepository.search(params).getChannels();
+                channels = channelRepository.search(params).channels();
             }
         } catch (ElasticsearchException | IOException e) {
             String message = MessageFormat.format(TextUtil.FAILED_TO_DELETE_PROPERTY, propertyName);

@@ -76,7 +76,7 @@ public class ChannelManager {
      */
     @GetMapping
     public List<Channel> query(@RequestParam MultiValueMap<String, String> allRequestParams) {
-        return channelRepository.search(allRequestParams).getChannels();
+        return channelRepository.search(allRequestParams).channels();
     }
 
     @GetMapping("/combined")
