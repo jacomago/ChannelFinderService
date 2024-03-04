@@ -41,6 +41,8 @@
         <skipITs>true</skipITs>
         <skipITCoverage>true</skipITCoverage>
         <jacoco.skip>true</jacoco.skip>
+        <sonar.organization>channelfinder</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     </properties>
     <dependencyManagement>
         <dependencies>
