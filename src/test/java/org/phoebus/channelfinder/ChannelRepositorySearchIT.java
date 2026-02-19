@@ -1,89 +1,146 @@
 package org.phoebus.channelfinder;
 
 import static java.lang.Math.min;
-import static org.phoebus.channelfinder.configuration.PopulateDBConfiguration.valBucket;
-import static org.phoebus.channelfinder.configuration.PopulateDBConfiguration.valBucketSize;
 
-import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
-import org.phoebus.channelfinder.configuration.PopulateDBConfiguration;
+import org.phoebus.channelfinder.entity.Channel;
+import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.entity.SearchResult;
+import org.phoebus.channelfinder.entity.Tag;
 import org.phoebus.channelfinder.repository.ChannelRepository;
 import org.phoebus.channelfinder.repository.PropertyRepository;
 import org.phoebus.channelfinder.repository.TagRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@WebMvcTest(ChannelRepository.class)
-@TestPropertySource(locations = "classpath:application_test.properties")
-@EnabledIfEnvironmentVariable(
-    named = "GITHUB_ACTIONS",
-    matches = "true",
-    disabledReason = "Requires Elasticsearch on localhost:9200; runs in CI only")
-@ContextConfiguration(classes = {ChannelRepository.class, ElasticConfig.class})
-class ChannelRepositorySearchIT {
+class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
   private static final Logger logger = Logger.getLogger(ChannelRepositorySearchIT.class.getName());
+
+  // Distribution buckets: valBucket[i] channels get tag/property with value valBucket[i]
+  // valBucketSize[i] is the count of channels assigned to bucket i (totals to 1000 per cell)
+  static final List<Integer> valBucket = List.of(0, 1, 2, 5, 10, 20, 50, 100, 200, 500);
+  static final List<Integer> valBucketSize =
+      List.of(
+          1000 - valBucket.stream().mapToInt(Integer::intValue).sum(),
+          1, 2, 5, 10, 20, 50, 100, 200, 500);
 
   // Need at least 10 000 channels to test Elastic search beyond the 10 000 default result limit
   // So needs to be a minimum of 7
   private final int CELLS = 100;
+
   @Autowired ChannelRepository channelRepository;
   @Autowired TagRepository tagRepository;
   @Autowired PropertyRepository propertyRepository;
-  @Autowired ElasticConfig esService;
-  @Autowired PopulateDBConfiguration populateDBConfiguration;
 
   @Value("${elasticsearch.query.size:10000}")
   int ELASTIC_LIMIT;
 
-  @BeforeAll
-  void setupAll() {
-    ElasticConfigIT.setUp(esService);
-  }
+  private final List<String> channelNames = new ArrayList<>();
 
   @BeforeEach
-  void setup() throws InterruptedException, IOException {
-    populateDBConfiguration.cleanupDB();
-    populateDBConfiguration.createDB(CELLS);
+  public void setup() throws InterruptedException {
+    cleanup();
+    populateTestData();
     Thread.sleep(5000);
   }
 
   @AfterEach
-  public void cleanup() throws InterruptedException {
-    populateDBConfiguration.cleanupDB();
+  public void cleanup() {
+    MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+    map.set("~name", "*");
+    channelRepository
+        .search(map)
+        .channels()
+        .forEach(c -> channelRepository.deleteById(c.getName()));
+    tagRepository.findAll().forEach(t -> tagRepository.deleteById(t.getName()));
+    propertyRepository.findAll().forEach(p -> propertyRepository.deleteById(p.getName()));
+    channelNames.clear();
   }
 
   /**
-   * Test searching for channel Note: the search tests are merged into a single test as an
-   * optimization. The population of the data cannot be performed in the @beforeClass since the
-   * springboot beans are not initialized hence the need to use @Before
+   * Populate test data matching the pattern from the old PopulateDBConfiguration:
+   * - Per cell: 1000 SR channels + 500 BR channels
+   * - 10 property groups (group0-group9) with values from valBucket
+   * - 10 tag groups with tags named group{id}_{value} for each valBucket value
+   * - Distribution: valBucketSize[i] channels get assigned to bucket valBucket[i]
    */
+  private void populateTestData() {
+    // Create group properties
+    List<Property> properties = new ArrayList<>();
+    for (int g = 0; g < 10; g++) {
+      properties.add(new Property("group" + g, "testOwner"));
+    }
+    propertyRepository.indexAll(properties);
+
+    // Create group tags — for each group id and each bucket value
+    List<Tag> tags = new ArrayList<>();
+    for (int g = 0; g < 10; g++) {
+      for (int v : valBucket) {
+        tags.add(new Tag("group" + g + "_" + v, "testOwner"));
+      }
+    }
+    tagRepository.indexAll(tags);
+
+    // Build a token list: tokens1000[i] = the bucket value assigned to channel index i
+    List<Integer> tokens1000 = new ArrayList<>(1000);
+    for (int bi = 0; bi < valBucketSize.size(); bi++) {
+      for (int j = 0; j < valBucketSize.get(bi); j++) {
+        tokens1000.add(valBucket.get(bi));
+      }
+    }
+
+    // Create channels for each cell
+    List<Channel> batch = new ArrayList<>();
+    for (int cell = 1; cell <= CELLS; cell++) {
+      String cellStr = String.format("%03d", cell);
+
+      // 1000 SR channels
+      for (int ch = 0; ch < 1000; ch++) {
+        String name = "SR:C" + cellStr + "-BI:" + ch + "{BLA}Pos:" + (ch % 2) + "-RB";
+        int bucketVal = tokens1000.get(ch);
+
+        List<Property> chProps = new ArrayList<>();
+        List<Tag> chTags = new ArrayList<>();
+        for (int g = 0; g < 10; g++) {
+          chProps.add(new Property("group" + g, "testOwner", String.valueOf(bucketVal)));
+          chTags.add(new Tag("group" + g + "_" + bucketVal, "testOwner"));
+        }
+
+        Channel c = new Channel(name, "testOwner", chProps, chTags);
+        batch.add(c);
+        channelNames.add(name);
+      }
+
+      // 500 BR channels
+      for (int ch = 0; ch < 500; ch++) {
+        String name = "BR:C" + cellStr + "-BI:" + ch + "{BLA}Pos:" + (ch % 2) + "-RB";
+        Channel c = new Channel(name, "testOwner");
+        batch.add(c);
+        channelNames.add(name);
+      }
+
+      // Index in batches to avoid excessive memory use
+      if (cell % 25 == 0 || cell == CELLS) {
+        channelRepository.indexAll(batch);
+        batch.clear();
+      }
+    }
+  }
+
   @Test
   void searchTest() {
-    List<String> channelNames =
-        Arrays.asList(populateDBConfiguration.getChannelList().toArray(new String[0]));
+    MultiValueMap<String, String> searchParameters = new LinkedMultiValueMap<>();
 
-    MultiValueMap<String, String> searchParameters = new LinkedMultiValueMap<String, String>();
-    // logger.log(Level.INFO, "Search for a single unique channel " + channelNames.get(0));
-
+    // Search for a single unique channel
     searchParameters.add("~name", channelNames.get(0));
     SearchResult result = channelRepository.search(searchParameters);
     long countResult = channelRepository.count(searchParameters);
@@ -101,7 +158,7 @@ class ChannelRepositorySearchIT {
     searchName(min(1000 * CELLS, ELASTIC_LIMIT), 1000 * CELLS, "SR*");
 
     logger.log(Level.INFO, "Search for all 1000 SR channels and all 500 booster channels");
-    long allCount = 1500 * CELLS;
+    long allCount = 1500L * CELLS;
     long elasticDefaultCount = min(allCount, ELASTIC_LIMIT);
     searchParameters.clear();
     searchParameters.add("~name", "SR*|BR*");
@@ -123,17 +180,16 @@ class ChannelRepositorySearchIT {
     assertSearchCount(allCount, (int) elasticDefaultCount, allCount, searchParameters);
 
     logger.log(Level.INFO, "Search for channels based on a tag");
-    for (long id = 1; id < valBucket.size(); id++) {
-
-      for (int bucket_index = 0; bucket_index < valBucket.size(); bucket_index++) {
+    for (int id = 1; id < valBucket.size(); id++) {
+      for (int bucketIndex = 0; bucketIndex < valBucket.size(); bucketIndex++) {
         checkGroup(
-            valBucketSize.get(bucket_index),
+            valBucketSize.get(bucketIndex),
             "~tag",
-            "group" + id + "_" + valBucket.get(bucket_index));
+            "group" + id + "_" + valBucket.get(bucketIndex));
         checkGroup(
-            valBucketSize.get(bucket_index),
+            valBucketSize.get(bucketIndex),
             "group" + id,
-            String.valueOf(valBucket.get(bucket_index)));
+            String.valueOf(valBucket.get(bucketIndex)));
       }
     }
   }
@@ -170,7 +226,7 @@ class ChannelRepositorySearchIT {
   }
 
   private void checkGroup(int bucket, String key, String value) {
-    MultiValueMap<String, String> searchParameters = new LinkedMultiValueMap<String, String>();
+    MultiValueMap<String, String> searchParameters = new LinkedMultiValueMap<>();
 
     searchParameters.add("~name", "SR*");
     searchParameters.add(key, value);
@@ -192,10 +248,5 @@ class ChannelRepositorySearchIT {
     StringBuffer sb = new StringBuffer();
     searchParameters.forEach((key, value) -> sb.append(key).append(" ").append(value));
     return sb.toString();
-  }
-
-  @AfterAll
-  void tearDown() throws IOException {
-    ElasticConfigIT.teardown(esService);
   }
 }
