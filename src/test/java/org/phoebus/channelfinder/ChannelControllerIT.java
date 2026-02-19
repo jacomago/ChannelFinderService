@@ -1,19 +1,14 @@
 package org.phoebus.channelfinder;
 
 import com.google.common.collect.Iterables;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.entity.Tag;
@@ -22,20 +17,11 @@ import org.phoebus.channelfinder.repository.ChannelRepository;
 import org.phoebus.channelfinder.repository.PropertyRepository;
 import org.phoebus.channelfinder.repository.TagRepository;
 import org.phoebus.channelfinder.web.v0.api.IChannel;
-import org.phoebus.channelfinder.web.v0.controller.ChannelController;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@WebMvcTest(ChannelController.class)
 @WithMockUser(roles = "CF-ADMINS")
-@TestPropertySource(value = "classpath:application_test.properties")
-@ContextConfiguration(
-    classes = {ChannelController.class, ElasticConfig.class, ChannelRepository.class})
-class ChannelControllerIT {
+class ChannelControllerIT extends AbstractElasticsearchIT {
 
   @Autowired IChannel channelManager;
 
@@ -551,15 +537,4 @@ class ChannelControllerIT {
         });
   }
 
-  @Autowired ElasticConfig esService;
-
-  @BeforeAll
-  void setupAll() {
-    ElasticConfigIT.setUp(esService);
-  }
-
-  @AfterAll
-  void tearDown() throws IOException {
-    ElasticConfigIT.teardown(esService);
-  }
 }

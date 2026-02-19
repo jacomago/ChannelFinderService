@@ -4,18 +4,13 @@ import static java.util.Collections.EMPTY_LIST;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.common.collect.Iterables;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.entity.Tag;
@@ -23,34 +18,19 @@ import org.phoebus.channelfinder.exceptions.PropertyNotFoundException;
 import org.phoebus.channelfinder.repository.ChannelRepository;
 import org.phoebus.channelfinder.repository.PropertyRepository;
 import org.phoebus.channelfinder.web.v0.api.IProperty;
-import org.phoebus.channelfinder.web.v0.controller.PropertyController;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@WebMvcTest(PropertyController.class) // TODO Somehow creating one
 @WithMockUser(roles = "CF-ADMINS")
-@TestPropertySource(value = "classpath:application_test.properties")
-@ContextConfiguration(classes = {PropertyController.class, ElasticConfig.class})
-class PropertyControllerIT {
+class PropertyControllerIT extends AbstractElasticsearchIT {
 
   @Autowired IProperty propertyManager;
 
   @Autowired PropertyRepository propertyRepository;
 
   @Autowired ChannelRepository channelRepository;
-
-  @Autowired ElasticConfig esService;
-
-  @BeforeAll
-  void setupAll() {
-    ElasticConfigIT.setUp(esService);
-  }
 
   // Helper operations to create and clean up the resources needed for successful
   // testing of the PropertyManager operations
@@ -79,10 +59,6 @@ class PropertyControllerIT {
     propertyRepository.findAll().forEach(p -> propertyRepository.deleteById(p.getName()));
   }
 
-  @AfterAll
-  void tearDown() throws IOException {
-    ElasticConfigIT.teardown(esService);
-  }
 
   /** list all properties */
   @Test

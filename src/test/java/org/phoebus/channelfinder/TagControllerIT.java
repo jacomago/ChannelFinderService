@@ -3,41 +3,29 @@ package org.phoebus.channelfinder;
 import static java.util.Collections.EMPTY_LIST;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Logger;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Tag;
 import org.phoebus.channelfinder.exceptions.TagNotFoundException;
 import org.phoebus.channelfinder.repository.ChannelRepository;
 import org.phoebus.channelfinder.repository.TagRepository;
 import org.phoebus.channelfinder.web.v0.api.ITag;
-import org.phoebus.channelfinder.web.v0.controller.TagController;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@WebMvcTest(TagController.class)
 @WithMockUser(roles = "CF-ADMINS")
-@ContextConfiguration(classes = {TagRepository.class, ElasticConfig.class})
-@TestPropertySource(value = "classpath:application_test.properties")
-class TagControllerIT {
+class TagControllerIT extends AbstractElasticsearchIT {
 
   @Autowired ITag tagManager;
 
@@ -45,13 +33,7 @@ class TagControllerIT {
 
   @Autowired ChannelRepository channelRepository;
 
-  @Autowired ElasticConfig esService;
   private static final Logger logger = Logger.getLogger(TagControllerIT.class.getName());
-
-  @AfterAll
-  void tearDown() throws IOException {
-    ElasticConfigIT.teardown(esService);
-  }
 
   /** list all tags */
   @Test
