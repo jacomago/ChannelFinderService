@@ -2,20 +2,15 @@ package org.phoebus.channelfinder;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.entity.SearchResult;
@@ -24,31 +19,17 @@ import org.phoebus.channelfinder.repository.ChannelRepository;
 import org.phoebus.channelfinder.repository.PropertyRepository;
 import org.phoebus.channelfinder.repository.TagRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ResponseStatusException;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@WebMvcTest(ChannelRepository.class)
-@TestPropertySource(value = "classpath:application_test.properties")
-@ContextConfiguration(classes = {ChannelRepository.class, ElasticConfig.class})
-class ChannelRepositoryIT {
-
-  @Autowired ElasticConfig esService;
+class ChannelRepositoryIT extends AbstractElasticsearchIT {
 
   @Autowired ChannelRepository channelRepository;
 
   @Autowired TagRepository tagRepository;
 
   @Autowired PropertyRepository propertyRepository;
-
-  @BeforeAll
-  void setupAll() {
-    ElasticConfigIT.setUp(esService);
-  }
 
   /** index a single channel */
   @Test
@@ -571,8 +552,4 @@ class ChannelRepositoryIT {
     propertyRepository.findAll().forEach(p -> propertyRepository.deleteById(p.getName()));
   }
 
-  @AfterAll
-  void tearDown() throws IOException {
-    ElasticConfigIT.teardown(esService);
-  }
 }
