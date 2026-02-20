@@ -33,9 +33,8 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
           1000 - valBucket.stream().mapToInt(Integer::intValue).sum(),
           1, 2, 5, 10, 20, 50, 100, 200, 500);
 
-  // Need at least 10 000 channels to test Elastic search beyond the 10 000 default result limit
-  // So needs to be a minimum of 7
-  private final int CELLS = 100;
+  // 10 groups × CELLS × 1000 channels must exceed ELASTIC_LIMIT (10 000) — minimum CELLS is 2
+  private final int CELLS = 2;
 
   @Autowired ChannelRepository channelRepository;
   @Autowired TagRepository tagRepository;
@@ -67,11 +66,11 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
   }
 
   /**
-   * Populate test data matching the pattern from the old PopulateDBConfiguration:
-   * - Per cell: 1000 SR channels + 500 BR channels
-   * - 10 property groups (group0-group9) with values from valBucket
-   * - 10 tag groups with tags named group{id}_{value} for each valBucket value
-   * - Distribution: valBucketSize[i] channels get assigned to bucket valBucket[i]
+   * Populate test data with self-documenting channel names:
+   * - For each group g (0-9) and each bucket value v from valBucket:
+   *   - CELLS * valBucketSize[bi] channels named channel_group{g}_tag{v}_{k}
+   *   - Each channel carries exactly one property (group{g}=v) and one tag (group{g}_{v})
+   * Total channels: 10 * CELLS * 1000
    */
   private void populateTestData() {
     // Create group properties
@@ -90,49 +89,22 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
     }
     tagRepository.indexAll(tags);
 
-    // Build a token list: tokens1000[i] = the bucket value assigned to channel index i
-    List<Integer> tokens1000 = new ArrayList<>(1000);
-    for (int bi = 0; bi < valBucketSize.size(); bi++) {
-      for (int j = 0; j < valBucketSize.get(bi); j++) {
-        tokens1000.add(valBucket.get(bi));
-      }
-    }
-
-    // Create channels for each cell
-    List<Channel> batch = new ArrayList<>();
-    for (int cell = 1; cell <= CELLS; cell++) {
-      String cellStr = String.format("%03d", cell);
-
-      // 1000 SR channels
-      for (int ch = 0; ch < 1000; ch++) {
-        String name = "SR:C" + cellStr + "-BI:" + ch + "{BLA}Pos:" + (ch % 2) + "-RB";
-        int bucketVal = tokens1000.get(ch);
-
-        List<Property> chProps = new ArrayList<>();
-        List<Tag> chTags = new ArrayList<>();
-        for (int g = 0; g < 10; g++) {
-          chProps.add(new Property("group" + g, "testOwner", String.valueOf(bucketVal)));
-          chTags.add(new Tag("group" + g + "_" + bucketVal, "testOwner"));
+    // Create channels: name encodes the single group property and tag each channel holds
+    for (int g = 0; g < 10; g++) {
+      List<Channel> batch = new ArrayList<>();
+      for (int bi = 0; bi < valBucket.size(); bi++) {
+        int v = valBucket.get(bi);
+        int count = CELLS * valBucketSize.get(bi);
+        Property prop = new Property("group" + g, "testOwner", String.valueOf(v));
+        Tag tag = new Tag("group" + g + "_" + v, "testOwner");
+        for (int k = 0; k < count; k++) {
+          String name = "channel_group" + g + "_tag" + v + "_" + k;
+          Channel c = new Channel(name, "testOwner", List.of(prop), List.of(tag));
+          batch.add(c);
+          channelNames.add(name);
         }
-
-        Channel c = new Channel(name, "testOwner", chProps, chTags);
-        batch.add(c);
-        channelNames.add(name);
       }
-
-      // 500 BR channels
-      for (int ch = 0; ch < 500; ch++) {
-        String name = "BR:C" + cellStr + "-BI:" + ch + "{BLA}Pos:" + (ch % 2) + "-RB";
-        Channel c = new Channel(name, "testOwner");
-        batch.add(c);
-        channelNames.add(name);
-      }
-
-      // Index in batches to avoid excessive memory use
-      if (cell % 25 == 0 || cell == CELLS) {
-        channelRepository.indexAll(batch);
-        batch.clear();
-      }
+      channelRepository.indexAll(batch);
     }
   }
 
@@ -140,46 +112,55 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
   void searchTest() {
     MultiValueMap<String, String> searchParameters = new LinkedMultiValueMap<>();
 
-    // Search for a single unique channel
+    // Search for a single unique channel by exact name
     searchParameters.add("~name", channelNames.get(0));
     SearchResult result = channelRepository.search(searchParameters);
     long countResult = channelRepository.count(searchParameters);
     Assertions.assertEquals(1, result.count());
     Assertions.assertEquals(1, result.channels().size());
     Assertions.assertEquals(1, countResult);
-    Assertions.assertEquals(result.channels().get(0).getName(), channelNames.get(0));
+    Assertions.assertEquals(result.channels().getFirst().getName(), channelNames.getFirst());
 
-    logger.log(Level.INFO, "Search for all channels via wildcards");
-    searchName(2, 2, "BR:C001-BI:2{BLA}Pos:?-RB");
+    // ? wildcard across groups: valBucketSize[1]=1 and CELLS=2 gives k=0,1; suffix "_0" picks k=0
+    logger.log(Level.INFO, "Search with ? wildcard across groups");
+    searchName(10, 10, "channel_group?_tag1_0");
 
-    searchName(4, 4, "BR:C001-BI:?{BLA}Pos:*");
+    // ? wildcard within one group/tag: matches k=0..CELLS-1 (assumes CELLS < 10)
+    logger.log(Level.INFO, "Search with ? wildcard within a group/tag");
+    searchName(CELLS, CELLS, "channel_group0_tag1_?");
 
-    logger.log(Level.INFO, "Search for all 1000 channels");
-    searchName(min(1000 * CELLS, ELASTIC_LIMIT), 1000 * CELLS, "SR*");
+    // * wildcard: all channels across all groups
+    long totalChannels = 10L * CELLS * 1000;
+    long elasticDefaultCount = min(totalChannels, ELASTIC_LIMIT);
+    logger.log(Level.INFO, "Search for all {0} channels via *", totalChannels);
+    searchName((int) elasticDefaultCount, (int) totalChannels, "channel_*");
 
-    logger.log(Level.INFO, "Search for all 1000 SR channels and all 500 booster channels");
-    long allCount = 1500L * CELLS;
-    long elasticDefaultCount = min(allCount, ELASTIC_LIMIT);
+    // OR search: two groups via | and , produce the same results
+    logger.log(Level.INFO, "Search for two groups via | and ,");
+    long twoGroupCount = 2L * CELLS * 1000;
+    long twoGroupElastic = min(twoGroupCount, ELASTIC_LIMIT);
     searchParameters.clear();
-    searchParameters.add("~name", "SR*|BR*");
-    assertSearchCount(elasticDefaultCount, (int) elasticDefaultCount, allCount, searchParameters);
+    searchParameters.add("~name", "channel_group0_*|channel_group1_*");
+    assertSearchCount(twoGroupElastic, (int) twoGroupElastic, twoGroupCount, searchParameters);
 
     searchParameters.clear();
-    searchParameters.add("~name", "SR*,BR*");
-    assertSearchCount(elasticDefaultCount, (int) elasticDefaultCount, allCount, searchParameters);
+    searchParameters.add("~name", "channel_group0_*,channel_group1_*");
+    assertSearchCount(twoGroupElastic, (int) twoGroupElastic, twoGroupCount, searchParameters);
 
-    logger.log(Level.INFO, "Search for all 1000 SR channels and all 500 booster channels");
+    // track_total_hits: verify exact count beyond ELASTIC_LIMIT
+    logger.log(Level.INFO, "Search with track_total_hits for accurate total count");
     searchParameters.clear();
-    searchParameters.add("~name", "SR*|BR*");
+    searchParameters.add("~name", "channel_*");
     searchParameters.add("~track_total_hits", "true");
-    assertSearchCount(allCount, (int) elasticDefaultCount, allCount, searchParameters);
+    assertSearchCount(totalChannels, (int) elasticDefaultCount, totalChannels, searchParameters);
 
     searchParameters.clear();
-    searchParameters.add("~name", "SR*,BR*");
+    searchParameters.add("~name", "channel_group0_*,channel_group1_*");
     searchParameters.add("~track_total_hits", "true");
-    assertSearchCount(allCount, (int) elasticDefaultCount, allCount, searchParameters);
+    assertSearchCount(twoGroupCount, (int) twoGroupElastic, twoGroupCount, searchParameters);
 
-    logger.log(Level.INFO, "Search for channels based on a tag");
+    // Property and tag searches: verify counts per group and bucket
+    logger.log(Level.INFO, "Search for channels based on a tag or property");
     for (int id = 1; id < valBucket.size(); id++) {
       for (int bucketIndex = 0; bucketIndex < valBucket.size(); bucketIndex++) {
         checkGroup(
@@ -207,15 +188,8 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
       MultiValueMap<String, String> searchParameters) {
     logger.log(
         Level.INFO,
-        "Search for "
-            + searchParameters
-            + " expected "
-            + expectedResultCount
-            + " results "
-            + expectedChannelsCount
-            + " channels "
-            + expectedQueryCount
-            + " queries");
+        "Search for {0} expected {1} results {2} channels {3} queries",
+        new Object[] {searchParameters, expectedResultCount, expectedChannelsCount, expectedQueryCount});
     // Act
     SearchResult result = channelRepository.search(searchParameters);
 
@@ -227,15 +201,14 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
 
   private void checkGroup(int bucket, String key, String value) {
     MultiValueMap<String, String> searchParameters = new LinkedMultiValueMap<>();
-
-    searchParameters.add("~name", "SR*");
     searchParameters.add(key, value);
 
     SearchResult result = channelRepository.search(searchParameters);
     Integer expectedCount = CELLS * bucket;
     logger.log(
         Level.INFO,
-        "Search for " + maptoString(searchParameters) + " expected " + expectedCount + " results");
+        "Search for {0} expected {1} results",
+        new Object[] {maptoString(searchParameters), expectedCount});
     Assertions.assertEquals(
         min(expectedCount, ELASTIC_LIMIT),
         Integer.valueOf(result.channels().size()),
