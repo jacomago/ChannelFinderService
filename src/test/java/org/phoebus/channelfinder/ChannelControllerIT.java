@@ -536,5 +536,4 @@ class ChannelControllerIT extends AbstractElasticsearchIT {
           }
         });
   }
-
 }

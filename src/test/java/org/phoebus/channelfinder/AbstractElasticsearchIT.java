@@ -12,12 +12,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * Base class for integration tests that need an Elasticsearch instance.
  *
  * <p>Uses Testcontainers to start a single Elasticsearch container that is shared across all test
- * classes extending this base. The container is started once and reused for all tests via the {@code
- * reuse} feature and the static {@code @Container} lifecycle.
+ * classes extending this base. The container is started once and reused for all tests via the
+ * {@code reuse} feature and the static {@code @Container} lifecycle.
  *
  * <p>Subclasses get a fully running Spring Boot application context with {@code RANDOM_PORT} to
- * avoid port conflicts, and the Elasticsearch connection is automatically configured via {@code
- * @DynamicPropertySource}.
+ * avoid port conflicts, and the Elasticsearch connection is automatically configured via
+ * {@code @DynamicPropertySource}.
  *
  * <p>Example usage:
  *

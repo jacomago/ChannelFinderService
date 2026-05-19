@@ -31,7 +31,15 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
   static final List<Integer> valBucketSize =
       List.of(
           1000 - valBucket.stream().mapToInt(Integer::intValue).sum(),
-          1, 2, 5, 10, 20, 50, 100, 200, 500);
+          1,
+          2,
+          5,
+          10,
+          20,
+          50,
+          100,
+          200,
+          500);
 
   // 10 groups × CELLS × 1000 channels must exceed ELASTIC_LIMIT (10 000) — minimum CELLS is 2
   private final int CELLS = 2;
@@ -66,11 +74,10 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
   }
 
   /**
-   * Populate test data with self-documenting channel names:
-   * - For each group g (0-9) and each bucket value v from valBucket:
-   *   - CELLS * valBucketSize[bi] channels named channel_group{g}_tag{v}_{k}
-   *   - Each channel carries exactly one property (group{g}=v) and one tag (group{g}_{v})
-   * Total channels: 10 * CELLS * 1000
+   * Populate test data with self-documenting channel names: - For each group g (0-9) and each
+   * bucket value v from valBucket: - CELLS * valBucketSize[bi] channels named
+   * channel_group{g}_tag{v}_{k} - Each channel carries exactly one property (group{g}=v) and one
+   * tag (group{g}_{v}) Total channels: 10 * CELLS * 1000
    */
   private void populateTestData() {
     // Create group properties
@@ -189,7 +196,9 @@ class ChannelRepositorySearchIT extends AbstractElasticsearchIT {
     logger.log(
         Level.INFO,
         "Search for {0} expected {1} results {2} channels {3} queries",
-        new Object[] {searchParameters, expectedResultCount, expectedChannelsCount, expectedQueryCount});
+        new Object[] {
+          searchParameters, expectedResultCount, expectedChannelsCount, expectedQueryCount
+        });
     // Act
     SearchResult result = channelRepository.search(searchParameters);
 

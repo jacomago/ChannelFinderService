@@ -61,11 +61,7 @@ class HttpEndpointIT extends AbstractElasticsearchIT {
     ResponseEntity<String> response =
         restTemplate
             .withBasicAuth("admin", "adminPass")
-            .exchange(
-                "/ChannelFinder/resources/tags/badTag",
-                HttpMethod.PUT,
-                entity,
-                String.class);
+            .exchange("/ChannelFinder/resources/tags/badTag", HttpMethod.PUT, entity, String.class);
     assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
   }
 
@@ -77,10 +73,7 @@ class HttpEndpointIT extends AbstractElasticsearchIT {
         new HttpEntity<>("{\"name\":\"testTag\",\"owner\":\"testOwner\"}", headers);
     ResponseEntity<String> response =
         restTemplate.exchange(
-            "/ChannelFinder/resources/tags/testTag",
-            HttpMethod.PUT,
-            entity,
-            String.class);
+            "/ChannelFinder/resources/tags/testTag", HttpMethod.PUT, entity, String.class);
     assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
   }
 
@@ -94,10 +87,7 @@ class HttpEndpointIT extends AbstractElasticsearchIT {
         restTemplate
             .withBasicAuth("admin", "adminPass")
             .exchange(
-                "/ChannelFinder/resources/tags/testTag",
-                HttpMethod.PUT,
-                entity,
-                String.class);
+                "/ChannelFinder/resources/tags/testTag", HttpMethod.PUT, entity, String.class);
     assertEquals(HttpStatus.OK, response.getStatusCode());
   }
 }

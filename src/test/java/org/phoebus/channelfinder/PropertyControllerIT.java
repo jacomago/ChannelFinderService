@@ -59,7 +59,6 @@ class PropertyControllerIT extends AbstractElasticsearchIT {
     propertyRepository.findAll().forEach(p -> propertyRepository.deleteById(p.getName()));
   }
 
-
   /** list all properties */
   @Test
   void listXmlProperties() {

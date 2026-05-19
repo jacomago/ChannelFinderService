@@ -551,5 +551,4 @@ class ChannelRepositoryIT extends AbstractElasticsearchIT {
     tagRepository.findAll().forEach(t -> tagRepository.deleteById(t.getName()));
     propertyRepository.findAll().forEach(p -> propertyRepository.deleteById(p.getName()));
   }
-
 }
