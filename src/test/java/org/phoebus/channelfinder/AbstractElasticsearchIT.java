@@ -39,7 +39,8 @@ import org.testcontainers.elasticsearch.ElasticsearchContainer;
       "demo_auth.enabled=true",
       "elasticsearch.create.indices=true",
       "ldap.enabled=false",
-      "embedded_ldap.enabled=false"
+      "embedded_ldap.enabled=false",
+      "server.http.enable=false"
     })
 public abstract class AbstractElasticsearchIT {
 

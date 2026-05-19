@@ -110,9 +110,16 @@ class ChannelScrollControllerIT extends AbstractElasticsearchIT {
       channelNames.add(name);
     }
 
-    // 500 BR channels
-    for (int ch = 0; ch < 500; ch++) {
-      String name = "BR:C" + cellStr + "-BI:" + ch + "{BLA}Pos:" + (ch % 2) + "-RB";
+    // 500 BR channels: 2 BPMs (BI:1,BI:2) × 2 positions (X,Y) + 496 generic
+    for (int bpm = 1; bpm <= 2; bpm++) {
+      for (String pos : new String[] {"X", "Y"}) {
+        String name = "BR:C" + cellStr + "-BI:" + bpm + "{BLA}Pos:" + pos + "-RB";
+        batch.add(new Channel(name, "testOwner"));
+        channelNames.add(name);
+      }
+    }
+    for (int ch = 0; ch < 496; ch++) {
+      String name = "BR:C" + cellStr + "-MG:" + String.format("%03d", ch) + "{DP}Fld-RB";
       batch.add(new Channel(name, "testOwner"));
       channelNames.add(name);
     }
