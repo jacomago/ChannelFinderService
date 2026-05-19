@@ -40,7 +40,8 @@ import org.testcontainers.elasticsearch.ElasticsearchContainer;
       "elasticsearch.create.indices=true",
       "ldap.enabled=false",
       "embedded_ldap.enabled=false",
-      "server.http.enable=false"
+      "server.http.enable=false",
+      "server.ssl.enabled=false"
     })
 public abstract class AbstractElasticsearchIT {
 
