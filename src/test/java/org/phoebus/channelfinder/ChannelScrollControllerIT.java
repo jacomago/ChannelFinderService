@@ -1,37 +1,26 @@
 package org.phoebus.channelfinder;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
-import org.phoebus.channelfinder.configuration.PopulateDBConfiguration;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.phoebus.channelfinder.entity.Channel;
+import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.entity.Scroll;
+import org.phoebus.channelfinder.entity.Tag;
 import org.phoebus.channelfinder.repository.ChannelRepository;
 import org.phoebus.channelfinder.repository.PropertyRepository;
 import org.phoebus.channelfinder.repository.TagRepository;
 import org.phoebus.channelfinder.web.v0.api.IChannelScroll;
-import org.phoebus.channelfinder.web.v0.controller.ChannelScrollController;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@WebMvcTest(ChannelScrollController.class)
-@TestPropertySource(value = "classpath:application_test.properties")
-@ContextConfiguration(classes = {ChannelScrollController.class, ElasticConfig.class})
-@EnabledIfEnvironmentVariable(
-    named = "GITHUB_ACTIONS",
-    matches = "true",
-    disabledReason = "Requires Elasticsearch on localhost:9200; runs in CI only")
-class ChannelScrollControllerIT {
+class ChannelScrollControllerIT extends AbstractElasticsearchIT {
 
   @Autowired IChannelScroll channelScroll;
 
@@ -41,31 +30,102 @@ class ChannelScrollControllerIT {
 
   @Autowired PropertyRepository propertyRepository;
 
-  @Autowired ElasticConfig esService;
+  final List<Integer> val_bucket = Arrays.asList(1, 2, 5, 10, 20, 50, 100, 200, 500);
 
-  @Autowired PopulateDBConfiguration populateDBConfiguration;
+  private final List<String> channelNames = new ArrayList<>();
 
   @BeforeEach
-  void setup() throws IOException {
-    populateDBConfiguration.createDB(1);
+  public void setup() throws InterruptedException {
+    populateTestData();
+    Thread.sleep(10000);
   }
 
   @AfterEach
-  void cleanup() {
-    populateDBConfiguration.cleanupDB();
+  public void cleanup() {
+    MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+    map.set("~name", "*");
+    channelRepository
+        .search(map)
+        .channels()
+        .forEach(c -> channelRepository.deleteById(c.getName()));
+    tagRepository.findAll().forEach(t -> tagRepository.deleteById(t.getName()));
+    propertyRepository.findAll().forEach(p -> propertyRepository.deleteById(p.getName()));
+    channelNames.clear();
   }
 
-  @BeforeAll
-  void setupAll() {
-    ElasticConfigIT.setUp(esService);
-  }
+  /**
+   * Create 1 cell of test data: 1000 SR channels + 500 BR channels with tags and properties
+   * matching the valBucket distribution.
+   */
+  private void populateTestData() {
+    // valBucketSize[i] = count of channels with tag/property value val_bucket[i]
+    // Total must be 1000 for SR channels
+    List<Integer> valBucketSize = Arrays.asList(1, 2, 5, 10, 20, 50, 100, 200, 500);
 
-  @AfterAll
-  void tearDown() throws IOException {
-    ElasticConfigIT.teardown(esService);
-  }
+    // Create group properties
+    List<Property> properties = new ArrayList<>();
+    for (int g = 0; g < 10; g++) {
+      properties.add(new Property("group" + g, "testOwner"));
+    }
+    propertyRepository.indexAll(properties);
 
-  final List<Integer> val_bucket = Arrays.asList(1, 2, 5, 10, 20, 50, 100, 200, 500);
+    // Create group tags
+    List<Tag> tags = new ArrayList<>();
+    for (int g = 0; g < 10; g++) {
+      for (int v : val_bucket) {
+        tags.add(new Tag("group" + g + "_" + v, "testOwner"));
+      }
+    }
+    tagRepository.indexAll(tags);
+
+    // Build token list mapping channel index -> bucket value
+    List<Integer> tokens1000 = new ArrayList<>(1000);
+    // First, pad with 0-bucket channels to reach 1000
+    int nonZeroSum = val_bucket.stream().mapToInt(Integer::intValue).sum();
+    for (int i = 0; i < 1000 - nonZeroSum; i++) {
+      tokens1000.add(0);
+    }
+    for (int bi = 0; bi < valBucketSize.size(); bi++) {
+      for (int j = 0; j < valBucketSize.get(bi); j++) {
+        tokens1000.add(val_bucket.get(bi));
+      }
+    }
+
+    String cellStr = "001";
+    List<Channel> batch = new ArrayList<>();
+
+    // 1000 SR channels
+    for (int ch = 0; ch < 1000; ch++) {
+      String name = "SR:C" + cellStr + "-BI:" + ch + "{BLA}Pos:" + (ch % 2) + "-RB";
+      int bucketVal = tokens1000.get(ch);
+
+      List<Property> chProps = new ArrayList<>();
+      List<Tag> chTags = new ArrayList<>();
+      for (int g = 0; g < 10; g++) {
+        chProps.add(new Property("group" + g, "testOwner", String.valueOf(bucketVal)));
+        chTags.add(new Tag("group" + g + "_" + bucketVal, "testOwner"));
+      }
+
+      batch.add(new Channel(name, "testOwner", chProps, chTags));
+      channelNames.add(name);
+    }
+
+    // 500 BR channels: 2 BPMs (BI:1,BI:2) × 2 positions (X,Y) + 496 generic
+    for (int bpm = 1; bpm <= 2; bpm++) {
+      for (String pos : new String[] {"X", "Y"}) {
+        String name = "BR:C" + cellStr + "-BI:" + bpm + "{BLA}Pos:" + pos + "-RB";
+        batch.add(new Channel(name, "testOwner"));
+        channelNames.add(name);
+      }
+    }
+    for (int ch = 0; ch < 496; ch++) {
+      String name = "BR:C" + cellStr + "-MG:" + String.format("%03d", ch) + "{DP}Fld-RB";
+      batch.add(new Channel(name, "testOwner"));
+      channelNames.add(name);
+    }
+
+    channelRepository.indexAll(batch);
+  }
 
   /**
    * Test searching for channels based on name
@@ -74,12 +134,6 @@ class ChannelScrollControllerIT {
    */
   @Test
   void searchNameTest() throws InterruptedException {
-    List<String> channelNames =
-        Arrays.asList(
-            populateDBConfiguration
-                .getChannelList()
-                .toArray(new String[populateDBConfiguration.getChannelList().size()]));
-
     MultiValueMap<String, String> searchParameters = new LinkedMultiValueMap<String, String>();
     // Search for a single unique channel
     searchParameters.add("~name", channelNames.get(0));

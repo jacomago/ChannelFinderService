@@ -22,10 +22,6 @@ import java.util.ServiceLoader;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.phoebus.channelfinder.configuration.ChannelProcessor;
-import org.phoebus.channelfinder.configuration.PopulateDBConfiguration;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -41,7 +37,7 @@ import org.springframework.util.FileCopyUtils;
 @EnableScheduling
 @OpenAPIDefinition(servers = {@Server(url = "/")})
 @SpringBootApplication
-public class Application implements ApplicationRunner {
+public class Application {
 
   private static final Logger logger = Logger.getLogger(Application.class.getName());
 
@@ -69,29 +65,6 @@ public class Application implements ApplicationRunner {
     if (System.getProperty("javax.net.ssl.trustStorePassword") == null) {
       logger.log(Level.INFO, "using default javax.net.ssl.trustStorePassword");
       System.setProperty("javax.net.ssl.trustStorePassword", "changeit");
-    }
-  }
-
-  @Autowired PopulateDBConfiguration service;
-
-  public void run(ApplicationArguments args) throws Exception {
-    if (args.containsOption("demo-data")) {
-      int numberOfCells =
-          args.getOptionValues("demo-data").stream().mapToInt(Integer::valueOf).max().orElse(1);
-      logger.log(Level.INFO, "Populating the channelfinder service with demo data");
-      service.createDB(numberOfCells);
-    }
-    if (args.containsOption("cleanup")) {
-      int numberOfCells =
-          args.getOptionValues("cleanup").stream().mapToInt(Integer::valueOf).max().orElse(1);
-      // This is kind of a hack, the create Db is being called to reset the channels and then
-      // deleting them
-      logger.log(
-          Level.INFO,
-          "Populating the channelfinder service with demo data first, then deleting them");
-      service.createDB(numberOfCells);
-      logger.log(Level.INFO, "Cleaning up the populated demo data");
-      service.cleanupDB();
     }
   }
 

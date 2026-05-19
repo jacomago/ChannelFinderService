@@ -7,11 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.List;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
-import org.phoebus.channelfinder.configuration.PopulateDBConfiguration;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.entity.Tag;
@@ -20,28 +16,22 @@ import org.phoebus.channelfinder.repository.PropertyRepository;
 import org.phoebus.channelfinder.repository.TagRepository;
 import org.phoebus.channelfinder.service.MetricsService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, classes = Application.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("metrics")
 @TestPropertySource(
-    locations = "classpath:application_test.properties",
     properties = {
       "metrics.tags=testTag0, testTag1",
       "metrics.properties=testProperty0: value0, value1; testProperty1: value0, !*",
       "metrics.updateInterval=1"
     })
-@ContextConfiguration(classes = {ElasticConfig.class, MetricsService.class})
-class MetricsServiceIT {
+class MetricsServiceIT extends AbstractElasticsearchIT {
 
   public static final String METRICS_ENDPOINT = "/actuator/metrics";
   public static final String PROPERTY_NAME = "testProperty";
@@ -56,18 +46,9 @@ class MetricsServiceIT {
 
   @Autowired PropertyRepository propertyRepository;
 
-  @Autowired ElasticConfig esService;
-
-  @Autowired PopulateDBConfiguration populateDBConfiguration;
-
   @Autowired MetricsService metricsService;
 
   @Autowired private MockMvc mockMvc;
-
-  @BeforeAll
-  void setupAll() {
-    ElasticConfigIT.setUp(esService);
-  }
 
   @AfterEach
   public void cleanup() {

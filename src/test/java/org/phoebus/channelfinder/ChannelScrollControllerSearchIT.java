@@ -1,65 +1,50 @@
 package org.phoebus.channelfinder;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.phoebus.channelfinder.configuration.ElasticConfig;
-import org.phoebus.channelfinder.configuration.PopulateDBConfiguration;
+import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Scroll;
-import org.phoebus.channelfinder.repository.PropertyRepository;
-import org.phoebus.channelfinder.repository.TagRepository;
+import org.phoebus.channelfinder.repository.ChannelRepository;
 import org.phoebus.channelfinder.web.v0.api.IChannelScroll;
-import org.phoebus.channelfinder.web.v0.controller.ChannelScrollController;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@WebMvcTest(ChannelScrollController.class)
-@TestPropertySource(value = "classpath:application_test.properties")
-@ContextConfiguration(classes = {ChannelScrollController.class, ElasticConfig.class})
-class ChannelScrollControllerSearchIT {
+class ChannelScrollControllerSearchIT extends AbstractElasticsearchIT {
 
   private static final Logger logger =
       Logger.getLogger(ChannelScrollControllerSearchIT.class.getName());
 
   @Autowired IChannelScroll channelScroll;
-
-  @Autowired TagRepository tagRepository;
-  @Autowired PropertyRepository propertyRepository;
-
-  @Autowired ElasticConfig esService;
-  @Autowired PopulateDBConfiguration populateDBConfiguration;
+  @Autowired ChannelRepository channelRepository;
 
   @BeforeEach
-  public void setup() throws InterruptedException, IOException {
-    populateDBConfiguration.createDB(1);
+  public void setup() throws InterruptedException {
+    // Create 1500 simple channels for scroll performance testing
+    List<Channel> channels = new ArrayList<>(1500);
+    for (int i = 0; i < 1000; i++) {
+      channels.add(new Channel("SR:C001-CH:" + i, "testOwner"));
+    }
+    for (int i = 0; i < 500; i++) {
+      channels.add(new Channel("BR:C001-CH:" + i, "testOwner"));
+    }
+    channelRepository.indexAll(channels);
     Thread.sleep(10000);
   }
 
   @AfterEach
-  public void cleanup() throws InterruptedException {
-    populateDBConfiguration.cleanupDB();
-    Thread.sleep(10000);
-  }
-
-  @BeforeAll
-  void setupAll() {
-    ElasticConfigIT.setUp(esService);
-  }
-
-  @AfterAll
-  void tearDown() throws IOException {
-    ElasticConfigIT.teardown(esService);
+  public void cleanup() {
+    MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+    map.set("~name", "*");
+    channelRepository
+        .search(map)
+        .channels()
+        .forEach(c -> channelRepository.deleteById(c.getName()));
   }
 
   /** Test searching for channels based on name */

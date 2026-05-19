@@ -65,16 +65,8 @@ jobs:
         java-version: '25'
         distribution: 'temurin'
         cache: maven
-    - name: Runs Elasticsearch
-      uses: elastic/elastic-github-actions/elasticsearch@master
-      with:
-        stack-version: 8.18.0
-        security-enabled: false
-    - name: Clear existing docker image cache
-      shell: bash
-      run: docker image prune -af
     - name: Integration Test with Maven
-      run: mvn clean install test-compile failsafe:integration-test failsafe:verify --batch-mode --fail-at-end -Djacoco.skip=true -DskipITs=false -DskipITCoverage=true
+      run: mvn --batch-mode --fail-at-end verify
       env:
         EPICS_PVA_ENABLE_IP6: "false"
     - name: Publish Test Report
