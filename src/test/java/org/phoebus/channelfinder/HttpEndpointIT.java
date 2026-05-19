@@ -5,7 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -17,6 +18,7 @@ import org.springframework.http.ResponseEntity;
  * Smoke tests that verify HTTP endpoints are accessible and return expected status codes. Uses
  * {@link TestRestTemplate} to make real HTTP requests against the running application.
  */
+@AutoConfigureTestRestTemplate
 class HttpEndpointIT extends AbstractElasticsearchIT {
 
   @Autowired TestRestTemplate restTemplate;
