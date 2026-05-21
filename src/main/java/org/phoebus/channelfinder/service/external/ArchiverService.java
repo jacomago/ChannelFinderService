@@ -81,49 +81,34 @@ public class ArchiverService {
   public List<Map<String, String>> getStatuses(
       Map<String, ArchivePVOptions> archivePVS, String archiverURL, String archiverAlias) {
     Set<String> pvs = archivePVS.keySet();
-    boolean postSupportOverride = postSupportArchivers.contains(archiverAlias);
-    logger.log(Level.INFO, "Archiver Alias: {0}", archiverAlias);
-    logger.log(Level.INFO, "Post Support Override Archivers: {0}", postSupportArchivers);
-
-    if (postSupportOverride) {
-      logger.log(Level.INFO, "Post Support");
-      return getStatusesFromPvListBody(archiverURL, pvs.stream().toList());
+    if (postSupportArchivers.contains(archiverAlias)) {
+      return getStatusesViaPost(archiverURL, pvs.stream().toList());
     } else {
-      logger.log(Level.INFO, "Query Support");
-      Stream<List<String>> stream = partitionSet(pvs, STATUS_BATCH_SIZE);
-
-      return stream
-          .map(pvList -> getStatusesFromPvListQuery(archiverURL, pvList))
+      return partitionSet(pvs, STATUS_BATCH_SIZE)
+          .map(pvList -> getStatusesViaGet(archiverURL, pvList))
           .flatMap(List::stream)
           .toList();
     }
   }
 
-  private List<Map<String, String>> getStatusesFromPvListQuery(
-      String archiverURL, List<String> pvs) {
+  List<Map<String, String>> getStatusesViaGet(String archiverURL, List<String> pvs) {
     String uriString = archiverURL + PV_STATUS_RESOURCE;
     URI pvStatusURI =
         UriComponentsBuilder.fromUri(URI.create(uriString))
             .queryParam(StatusResponseKey.PV.key(), String.join(",", pvs))
             .build()
             .toUri();
-
     try {
       List<Map<String, String>> result =
           client.get().uri(pvStatusURI).retrieve().body(new ParameterizedTypeReference<>() {});
       return result != null ? result : List.of();
     } catch (Exception e) {
-      logger.log(
-          Level.WARNING,
-          String.format(
-              "There was an error getting a response with URI: %s. Error: %s",
-              uriString, e.getMessage()));
-      return List.of();
+      throw new ArchiverServiceException(
+          String.format("Failed GET status query to %s: %s", uriString, e.getMessage()), e);
     }
   }
 
-  private List<Map<String, String>> getStatusesFromPvListBody(
-      String archiverURL, List<String> pvs) {
+  List<Map<String, String>> getStatusesViaPost(String archiverURL, List<String> pvs) {
     String uriString = archiverURL + PV_STATUS_RESOURCE;
     try {
       List<Map<String, String>> result =
@@ -136,12 +121,8 @@ public class ArchiverService {
               .body(new ParameterizedTypeReference<>() {});
       return result != null ? result : List.of();
     } catch (Exception e) {
-      logger.log(
-          Level.WARNING,
-          String.format(
-              "There was an error getting a response with URI: %s. Error: %s",
-              uriString, e.getMessage()));
-      return List.of();
+      throw new ArchiverServiceException(
+          String.format("Failed POST status query to %s: %s", uriString, e.getMessage()), e);
     }
   }
 
