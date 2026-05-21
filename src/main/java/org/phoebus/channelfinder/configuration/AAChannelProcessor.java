@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
@@ -123,24 +124,7 @@ public class AAChannelProcessor implements ChannelProcessor {
         channel -> {
           Optional<Property> archiveProperty = findProperty(channel, archivePropertyName);
           if (archiveProperty.isPresent()) {
-            channel.getProperties().stream()
-                .filter(xmlProperty -> archiverPropertyName.equalsIgnoreCase(xmlProperty.getName()))
-                .findFirst()
-                .map(
-                    xmlProperty -> {
-                      String archiverValue = xmlProperty.getValue();
-                      // archiver property can be comma separated list of archivers
-                      if (archiverValue != null && !archiverValue.isEmpty()) {
-                        return Arrays.stream(archiverValue.split(","))
-                            .map(String::trim)
-                            .filter(s -> !s.isEmpty());
-                      } else {
-                        return defaultArchivers.stream();
-                      }
-                    })
-                .orElse(
-                    defaultArchivers
-                        .stream()) // Use defaultArchivers list if no matching property found
+            resolveArchiverAliases(channel)
                 .forEach(
                     archiverAlias -> {
                       try {
@@ -183,6 +167,12 @@ public class AAChannelProcessor implements ChannelProcessor {
     long finalCount = count;
     logger.log(Level.INFO, () -> String.format("Configured %s channels.", finalCount));
     return finalCount;
+  }
+
+  private Stream<String> resolveArchiverAliases(Channel channel) {
+    return findPropertyValue(channel, archiverPropertyName)
+        .map(v -> Arrays.stream(v.split(",")).map(String::trim).filter(s -> !s.isEmpty()))
+        .orElseGet(defaultArchivers::stream);
   }
 
   private Optional<Property> findProperty(Channel channel, String propertyName) {
