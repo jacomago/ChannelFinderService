@@ -88,4 +88,52 @@ class ChannelProcessorControllerIT {
             .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION);
     mockMvc.perform(request).andExpect(status().isOk());
   }
+
+  @Test
+  void testRefreshProcessor() throws Exception {
+    mockMvc
+        .perform(
+            put("/"
+                    + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
+                    + "/processor/AAChannelProcessor/refresh")
+                .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void testSetProcessorProperty() throws Exception {
+    mockMvc
+        .perform(
+            put("/"
+                    + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
+                    + "/processor/AAChannelProcessor/property/autoPauseOptions")
+                .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                .contentType("text/plain")
+                .content("pvStatus"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void testRefreshProcessorNotFound() throws Exception {
+    mockMvc
+        .perform(
+            put("/"
+                    + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
+                    + "/processor/NonExistent/refresh")
+                .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void testSetProcessorPropertyNotFound() throws Exception {
+    mockMvc
+        .perform(
+            put("/"
+                    + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
+                    + "/processor/NonExistent/property/autoPauseOptions")
+                .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
+                .contentType("text/plain")
+                .content("pvStatus"))
+        .andExpect(status().isNotFound());
+  }
 }

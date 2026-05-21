@@ -2,6 +2,7 @@ package org.phoebus.channelfinder.processors.aa;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,6 +42,12 @@ class AAChannelProcessorMultiIT {
   public static final String OWNER = "owner";
   @Autowired AAChannelProcessor aaChannelProcessor;
   @MockitoBean ArchiverService archiverService;
+
+  @BeforeEach
+  void setUp() {
+    when(archiverService.getAAPolicies(anyString())).thenReturn(List.of("policy"));
+    aaChannelProcessor.refresh();
+  }
 
   static Stream<Arguments> provideArguments() {
     List<Channel> channels =
@@ -103,16 +111,11 @@ class AAChannelProcessorMultiIT {
       int expectedProcessedChannels)
       throws JacksonException {
 
-    // Mock getAAPolicies
-    when(archiverService.getAAPolicies(anyString())).thenReturn(List.of("policy"));
-
-    // Mock getStatuses
     List<Map<String, String>> archivePVStatuses =
         namesToStatuses.entrySet().stream()
             .map(entry -> Map.of("pvName", entry.getKey(), "status", entry.getValue()))
             .toList();
-    when(archiverService.getStatuses(anyMap(), anyString(), anyString()))
-        .thenReturn(archivePVStatuses);
+    when(archiverService.getStatusesViaGet(anyString(), anyList())).thenReturn(archivePVStatuses);
 
     // Mock configureAA
     when(archiverService.configureAA(anyMap(), anyString()))
@@ -121,8 +124,7 @@ class AAChannelProcessorMultiIT {
     long count = aaChannelProcessor.process(channels);
     assertEquals(expectedProcessedChannels, count);
 
-    verify(archiverService).getAAPolicies(anyString());
-    verify(archiverService).getStatuses(anyMap(), anyString(), anyString());
+    verify(archiverService).getStatusesViaGet(anyString(), anyList());
 
     ArgumentCaptor<Map<ArchiveAction, List<ArchivePVOptions>>> captor =
         ArgumentCaptor.forClass(Map.class);

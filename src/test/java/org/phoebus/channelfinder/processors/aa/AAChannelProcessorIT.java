@@ -2,9 +2,12 @@ package org.phoebus.channelfinder.processors.aa;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,7 +27,9 @@ import org.phoebus.channelfinder.configuration.AAChannelProcessor;
 import org.phoebus.channelfinder.configuration.ChannelProcessor;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
+import org.phoebus.channelfinder.exceptions.ArchiverServiceException;
 import org.phoebus.channelfinder.service.external.ArchiverService;
+import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
 import org.phoebus.channelfinder.service.model.archiver.aa.ArchiveAction;
 import org.phoebus.channelfinder.service.model.archiver.aa.ArchivePVOptions;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +49,12 @@ class AAChannelProcessorIT {
 
   @MockitoBean ArchiverService archiverService;
   @Autowired AAChannelProcessor aaChannelProcessor;
+
+  @BeforeEach
+  void setUp() {
+    when(archiverService.getAAPolicies(anyString())).thenReturn(List.of("policy"));
+    aaChannelProcessor.refresh();
+  }
 
   @NotNull
   private static Stream<Arguments> processSource() {
@@ -100,21 +112,15 @@ class AAChannelProcessorIT {
       String archiveStatus,
       String archiverEndpoint)
       throws JacksonException {
-    // Mock getAAPolicies
-    when(archiverService.getAAPolicies(anyString())).thenReturn(List.of("policy"));
-
     if (!archiveStatus.isEmpty()) {
-      // Mock getStatuses
       List<Map<String, String>> archivePVStatuses =
           channels.stream()
               .map(channel -> Map.of("pvName", channel.getName(), "status", archiveStatus))
               .toList();
-      when(archiverService.getStatuses(anyMap(), anyString(), anyString()))
-          .thenReturn(archivePVStatuses);
+      when(archiverService.getStatusesViaGet(anyString(), anyList())).thenReturn(archivePVStatuses);
     }
 
     if (!archiverEndpoint.isEmpty()) {
-      // Mock configureAA
       when(archiverService.configureAA(anyMap(), anyString())).thenReturn((long) channels.size());
     } else {
       when(archiverService.configureAA(anyMap(), anyString())).thenReturn(0L);
@@ -123,11 +129,8 @@ class AAChannelProcessorIT {
     long count = aaChannelProcessor.process(channels);
     assertEquals(count, archiverEndpoint.isEmpty() ? 0 : channels.size());
 
-    // Verifications
-    verify(archiverService).getAAPolicies(anyString());
-
     if (!archiveStatus.isEmpty()) {
-      verify(archiverService).getStatuses(anyMap(), anyString(), anyString());
+      verify(archiverService).getStatusesViaGet(anyString(), anyList());
     }
 
     if (!archiverEndpoint.isEmpty()) {
@@ -158,9 +161,29 @@ class AAChannelProcessorIT {
   @Test
   void testProcessNoPVs() throws JacksonException {
     aaChannelProcessor.process(List.of());
+  }
 
-    // verify interactions are minimal or none if empty
-    // But since list is empty, process returns 0 early
+  @Test
+  void testSetPropertyMutatesConfig() {
+    aaChannelProcessor.setProperty("autoPauseOptions", "pvStatus,archive");
+    ChannelProcessorInfo info = aaChannelProcessor.processorInfo();
+    String autoPauseOn = info.properties().get("AutoPauseOn");
+    assertNotNull(autoPauseOn);
+    assertTrue(autoPauseOn.contains("pvStatus"));
+    assertTrue(autoPauseOn.contains("archive"));
+  }
+
+  @Test
+  void testStatusFetchFailureSkipsArchiver() throws JacksonException {
+    when(archiverService.getStatusesViaGet(anyString(), anyList()))
+        .thenThrow(new ArchiverServiceException("simulated failure", null));
+
+    Channel channel =
+        new Channel("PV1", "owner", List.of(archiveProperty, activeProperty), List.of());
+    long count = aaChannelProcessor.process(List.of(channel));
+
+    assertEquals(0, count);
+    verify(archiverService, never()).configureAA(anyMap(), anyString());
   }
 
   @ParameterizedTest

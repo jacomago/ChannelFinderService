@@ -1,5 +1,6 @@
 package org.phoebus.channelfinder.processors.aa;
 
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -37,6 +39,12 @@ class AAChannelProcessorMultiArchiverIT {
   public static final String OWNER = "owner";
   @Autowired AAChannelProcessor aaChannelProcessor;
   @MockitoBean ArchiverService archiverService;
+
+  @BeforeEach
+  void setUp() {
+    when(archiverService.getAAPolicies(anyString())).thenReturn(List.of("policy"));
+    aaChannelProcessor.refresh();
+  }
 
   static Stream<Arguments> provideArguments() {
     List<Channel> channels =
@@ -98,42 +106,23 @@ class AAChannelProcessorMultiArchiverIT {
       Map<String, String> namesToStatuses,
       Map<ArchiveAction, List<String>> actionsToNames)
       throws JacksonException {
-    when(archiverService.getAAPolicies(anyString())).thenReturn(List.of("policy"));
-
-    // Request to archiver status
     List<Map<String, String>> archivePVStatuses =
         namesToStatuses.entrySet().stream()
             .map(entry -> Map.of("pvName", entry.getKey(), "status", entry.getValue()))
             .toList();
-    when(archiverService.getStatuses(anyMap(), anyString(), anyString()))
-        .thenReturn(archivePVStatuses);
+    when(archiverService.getStatusesViaGet(anyString(), anyList())).thenReturn(archivePVStatuses);
+    when(archiverService.getStatusesViaPost(anyString(), anyList())).thenReturn(archivePVStatuses);
 
-    // Requests to archiver
     actionsToNames.forEach(
-        (key, value) -> {
-          when(archiverService.configureAA(anyMap(), anyString())).thenReturn((long) value.size());
-        });
-
-    // Request to policies
-    when(archiverService.getAAPolicies(anyString())).thenReturn(List.of("policy"));
-
-    // Request to archiver status
-    when(archiverService.getStatuses(anyMap(), anyString(), anyString()))
-        .thenReturn(archivePVStatuses);
-
-    // Requests to archiver
-    actionsToNames.forEach(
-        (key, value) -> {
-          when(archiverService.configureAA(anyMap(), anyString())).thenReturn((long) value.size());
-        });
+        (key, value) ->
+            when(archiverService.configureAA(anyMap(), anyString()))
+                .thenReturn((long) value.size()));
 
     aaChannelProcessor.process(channels);
 
-    // Verifications
-    verify(archiverService, times(2)).getAAPolicies(anyString());
-
     if (!namesToStatuses.isEmpty()) {
-      verify(archiverService, times(2)).getStatuses(anyMap(), anyString(), anyString());
+      verify(archiverService, times(1)).getStatusesViaGet(anyString(), anyList());
+      verify(archiverService, times(1)).getStatusesViaPost(anyString(), anyList());
     }
   }
 }
