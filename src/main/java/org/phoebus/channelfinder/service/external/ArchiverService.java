@@ -263,7 +263,7 @@ public class ArchiverService {
       return new ArrayList<>(policyMap.keySet());
     } catch (Exception e) {
       // problem collecting policies from AA, so warn and return empty list
-      logger.log(Level.WARNING, "Could not get AA policies list from: " + aaURL, e);
+      logger.log(Level.WARNING, "Could not get AA policies list from: " + aaURL);
       return List.of();
     }
   }
