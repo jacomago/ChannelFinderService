@@ -62,7 +62,10 @@ public class AAChannelProcessor implements ChannelProcessor {
   private String archiverPropertyName;
 
   @Value("${aa.auto_pause:}")
-  private List<String> autoPauseOptions;
+  private volatile List<String> autoPauseOptions;
+
+  @Value("${aa.post_support:}")
+  private volatile List<String> postSupportArchivers;
 
   @Autowired private ArchiverService archiverService;
 
@@ -260,8 +263,12 @@ public class AAChannelProcessor implements ChannelProcessor {
       return Optional.of(result);
     }
     List<Map<String, String>> statuses;
+    List<String> pvList = new ArrayList<>(archivePVS.keySet());
     try {
-      statuses = archiverService.getStatuses(archivePVS, archiverInfo.url(), archiverInfo.alias());
+      statuses =
+          postSupportArchivers.contains(archiverInfo.alias())
+              ? archiverService.getStatusesViaPost(archiverInfo.url(), pvList)
+              : archiverService.getStatusesViaGet(archiverInfo.url(), pvList);
     } catch (ArchiverServiceException e) {
       logger.log(
           Level.WARNING,
