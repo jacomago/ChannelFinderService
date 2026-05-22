@@ -10,15 +10,17 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
-import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
+import org.phoebus.channelfinder.service.model.processor.ProcessorInfo;
 import org.phoebus.channelfinder.web.v0.dto.ChannelDto;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
 
 public interface IChannelProcessor {
 
@@ -49,12 +51,22 @@ public interface IChannelProcessor {
             description = "List of processor-info",
             content =
                 @Content(
-                    array =
-                        @ArraySchema(
-                            schema = @Schema(implementation = ChannelProcessorInfo.class))))
+                    array = @ArraySchema(schema = @Schema(implementation = ProcessorInfo.class))))
       })
   @GetMapping("/processors")
-  List<ChannelProcessorInfo> processorInfo();
+  List<ProcessorInfo> processorInfo();
+
+  @Operation(summary = "Get typed info for a single processor")
+  @ApiResponses(
+      value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Processor info",
+            content = @Content(schema = @Schema(implementation = ProcessorInfo.class))),
+        @ApiResponse(responseCode = "404", description = "Processor not found")
+      })
+  @GetMapping("/processor/{processorName}/info")
+  ProcessorInfo getProcessorInfo(@PathVariable("processorName") String processorName);
 
   @Operation(
       summary = "Process all channels",
@@ -110,15 +122,18 @@ public interface IChannelProcessor {
   void refreshProcessor(@PathVariable("processorName") String processorName);
 
   @Operation(
-      summary = "Set a runtime-configurable property on the named processor",
+      summary = "Partially update runtime config for a processor",
       description =
-          "For AAChannelProcessor: keys are autoPauseOptions, postSupportArchivers,"
-              + " defaultArchivers. Pass a comma-separated value, or empty string to clear.")
-  @PutMapping(
-      value = "/processor/{processorName}/property/{key}",
-      consumes = {"text/plain"})
-  void setProcessorProperty(
-      @PathVariable("processorName") String processorName,
-      @PathVariable("key") String key,
-      @RequestBody String value);
+          "Applies a partial config update. Fields present in the body are applied; absent"
+              + " fields are unchanged. Unrecognised keys are logged and ignored."
+              + " For AAChannelProcessor: autoPauseOn, defaultArchivers, postSupportArchivers"
+              + " (all List<String>).")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "Config updated"),
+        @ApiResponse(responseCode = "404", description = "Processor not found")
+      })
+  @PatchMapping(value = "/processor/{processorName}/info/config", consumes = "application/json")
+  void patchProcessorConfig(
+      @PathVariable("processorName") String processorName, @RequestBody JsonNode config);
 }

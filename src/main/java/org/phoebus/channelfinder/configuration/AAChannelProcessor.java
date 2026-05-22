@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,16 +21,19 @@ import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.exceptions.ArchiverServiceException;
 import org.phoebus.channelfinder.service.external.ArchiverService;
-import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
 import org.phoebus.channelfinder.service.model.archiver.aa.ArchiveAction;
 import org.phoebus.channelfinder.service.model.archiver.aa.ArchivePVOptions;
 import org.phoebus.channelfinder.service.model.archiver.aa.ArchiverInfo;
+import org.phoebus.channelfinder.service.model.processor.aa.AAConfig;
+import org.phoebus.channelfinder.service.model.processor.aa.AAProcessorInfo;
+import org.phoebus.channelfinder.service.model.processor.aa.AAStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Scheduled;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 
 /**
  * A post processor which uses the channel property *archive* to add pv's to the archiver appliance
@@ -107,20 +111,32 @@ public class AAChannelProcessor implements ChannelProcessor {
     refreshPolicies();
   }
 
+  private static final Set<String> KNOWN_CONFIG_KEYS =
+      Set.of("autoPauseOn", "defaultArchivers", "postSupportArchivers");
+
   @Override
-  public void setProperty(String key, String value) {
-    List<String> parsed =
-        Arrays.stream(value.split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .collect(Collectors.toList());
-    switch (key) {
-      case "autoPauseOptions" -> autoPauseOptions = parsed;
-      case "postSupportArchivers" -> postSupportArchivers = parsed;
-      case "defaultArchivers" -> defaultArchivers = parsed;
-      default ->
-          logger.log(Level.FINE, "AAChannelProcessor: unknown property ''{0}''; ignoring.", key);
-    }
+  public void applyConfig(JsonNode config) {
+    config
+        .propertyNames()
+        .forEach(
+            key -> {
+              if (!KNOWN_CONFIG_KEYS.contains(key))
+                logger.log(
+                    Level.WARNING,
+                    "AAChannelProcessor: unknown config key ''{0}''; ignoring.",
+                    key);
+            });
+    if (config.has("autoPauseOn")) autoPauseOptions = readStringList(config.get("autoPauseOn"));
+    if (config.has("defaultArchivers"))
+      defaultArchivers = readStringList(config.get("defaultArchivers"));
+    if (config.has("postSupportArchivers"))
+      postSupportArchivers = readStringList(config.get("postSupportArchivers"));
+  }
+
+  private static List<String> readStringList(JsonNode node) {
+    List<String> result = new ArrayList<>();
+    node.forEach(n -> result.add(n.asText()));
+    return Collections.unmodifiableList(result);
   }
 
   private void refreshPolicies() {
@@ -146,32 +162,20 @@ public class AAChannelProcessor implements ChannelProcessor {
   }
 
   @Override
-  public ChannelProcessorInfo processorInfo() {
+  public AAProcessorInfo processorInfo() {
     Map<String, List<String>> snapshot = cachedPolicies;
-    String policyCounts =
+    Map<String, Integer> policyCounts =
         snapshot.entrySet().stream()
-            .map(e -> e.getKey() + "=" + e.getValue().size())
-            .collect(Collectors.joining(", "));
-    return new ChannelProcessorInfo(
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+    return new AAProcessorInfo(
         "AAChannelProcessor",
         aaEnabled,
-        Map.of(
-            "archiveProperty",
-            archivePropertyName,
-            "archiverProperty",
-            archiverPropertyName,
-            "Archivers",
-            aaURLs.keySet().toString(),
-            "AutoPauseOn",
-            autoPauseOptions.toString(),
-            "PostSupportArchivers",
-            postSupportArchivers.toString(),
-            "PolicyRefreshIntervalSeconds",
-            String.valueOf(policyRefreshIntervalSeconds),
-            "LastPolicyRefresh",
-            lastPolicyRefresh == null ? "never" : lastPolicyRefresh.toString(),
-            "CachedPoliciesPerArchiver",
-            policyCounts.isEmpty() ? "none" : policyCounts));
+        archivePropertyName,
+        archiverPropertyName,
+        aaURLs.keySet(),
+        policyRefreshIntervalSeconds,
+        new AAConfig(autoPauseOptions, defaultArchivers, postSupportArchivers),
+        new AAStatus(lastPolicyRefresh, policyCounts));
   }
 
   /**

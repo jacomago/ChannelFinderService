@@ -2,8 +2,9 @@ package org.phoebus.channelfinder.configuration;
 
 import java.util.List;
 import org.phoebus.channelfinder.entity.Channel;
-import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
+import org.phoebus.channelfinder.service.model.processor.ProcessorInfo;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 
 public interface ChannelProcessor {
 
@@ -11,7 +12,7 @@ public interface ChannelProcessor {
 
   void setEnabled(boolean enabled);
 
-  ChannelProcessorInfo processorInfo();
+  ProcessorInfo processorInfo();
 
   long process(List<Channel> channels) throws JacksonException;
 
@@ -19,8 +20,8 @@ public interface ChannelProcessor {
   default void refresh() {}
 
   /**
-   * Set a named runtime-configurable property. Unrecognized keys are silently ignored. An empty
-   * value clears the option (treated as an empty list for list-valued properties).
+   * Apply a partial config update. Fields present in {@code config} are applied; absent fields are
+   * unchanged. Unrecognised keys are logged at WARNING and ignored. Default: no-op.
    */
-  default void setProperty(String key, String value) {}
+  default void applyConfig(JsonNode config) {}
 }

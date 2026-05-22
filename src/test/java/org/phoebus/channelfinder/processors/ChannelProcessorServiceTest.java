@@ -2,7 +2,6 @@ package org.phoebus.channelfinder.processors;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.phoebus.channelfinder.configuration.ChannelProcessor;
 import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.service.ChannelProcessorService;
-import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
+import org.phoebus.channelfinder.service.model.processor.ProcessorInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
@@ -38,6 +37,8 @@ class ChannelProcessorServiceTest {
     private final AtomicBoolean enabled = new AtomicBoolean(false);
     private final AtomicBoolean processed = new AtomicBoolean(false);
 
+    record DummyInfo(String name, boolean enabled) implements ProcessorInfo {}
+
     @Override
     public boolean enabled() {
       return enabled.get();
@@ -49,8 +50,8 @@ class ChannelProcessorServiceTest {
     }
 
     @Override
-    public ChannelProcessorInfo processorInfo() {
-      return new ChannelProcessorInfo("DummyProcessor", enabled.get(), Map.of());
+    public ProcessorInfo processorInfo() {
+      return new DummyInfo("DummyProcessor", enabled.get());
     }
 
     @Override

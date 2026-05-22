@@ -29,14 +29,16 @@ import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Property;
 import org.phoebus.channelfinder.exceptions.ArchiverServiceException;
 import org.phoebus.channelfinder.service.external.ArchiverService;
-import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
 import org.phoebus.channelfinder.service.model.archiver.aa.ArchiveAction;
 import org.phoebus.channelfinder.service.model.archiver.aa.ArchivePVOptions;
+import org.phoebus.channelfinder.service.model.processor.aa.AAConfig;
+import org.phoebus.channelfinder.service.model.processor.aa.AAProcessorInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @WebMvcTest(AAChannelProcessor.class)
 @ExtendWith(MockitoExtension.class)
@@ -164,13 +166,13 @@ class AAChannelProcessorIT {
   }
 
   @Test
-  void testSetPropertyMutatesConfig() {
-    aaChannelProcessor.setProperty("autoPauseOptions", "pvStatus,archive");
-    ChannelProcessorInfo info = aaChannelProcessor.processorInfo();
-    String autoPauseOn = info.properties().get("AutoPauseOn");
-    assertNotNull(autoPauseOn);
-    assertTrue(autoPauseOn.contains("pvStatus"));
-    assertTrue(autoPauseOn.contains("archive"));
+  void testApplyConfigMutatesConfig() throws Exception {
+    var node = new ObjectMapper().readTree("{\"autoPauseOn\":[\"pvStatus\",\"archive\"]}");
+    aaChannelProcessor.applyConfig(node);
+    AAConfig config = ((AAProcessorInfo) aaChannelProcessor.processorInfo()).config();
+    assertNotNull(config.autoPauseOn());
+    assertTrue(config.autoPauseOn().contains("pvStatus"));
+    assertTrue(config.autoPauseOn().contains("archive"));
   }
 
   @Test

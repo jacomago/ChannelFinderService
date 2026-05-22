@@ -2,7 +2,7 @@ package org.phoebus.channelfinder.web.v0.controller;
 
 import java.util.List;
 import org.phoebus.channelfinder.service.ChannelProcessorService;
-import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
+import org.phoebus.channelfinder.service.model.processor.ProcessorInfo;
 import org.phoebus.channelfinder.web.v0.api.IChannelProcessor;
 import org.phoebus.channelfinder.web.v0.dto.ChannelDto;
 import org.phoebus.channelfinder.web.v0.mapper.ChannelMapper;
@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 @RestController
 @EnableAutoConfiguration
@@ -28,8 +29,13 @@ public class ChannelProcessorController implements IChannelProcessor {
   }
 
   @Override
-  public List<ChannelProcessorInfo> processorInfo() {
+  public List<ProcessorInfo> processorInfo() {
     return channelProcessorService.getProcessorsInfo();
+  }
+
+  @Override
+  public ProcessorInfo getProcessorInfo(String processorName) {
+    return channelProcessorService.getProcessorInfo(processorName);
   }
 
   @Override
@@ -58,7 +64,7 @@ public class ChannelProcessorController implements IChannelProcessor {
   }
 
   @Override
-  public void setProcessorProperty(String processorName, String key, String value) {
-    channelProcessorService.setProcessorProperty(processorName, key, value);
+  public void patchProcessorConfig(String processorName, JsonNode config) {
+    channelProcessorService.patchProcessorConfig(processorName, config);
   }
 }

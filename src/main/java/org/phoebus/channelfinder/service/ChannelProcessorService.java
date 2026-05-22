@@ -12,7 +12,7 @@ import org.phoebus.channelfinder.entity.Channel;
 import org.phoebus.channelfinder.entity.Scroll;
 import org.phoebus.channelfinder.exceptions.UnauthorizedException;
 import org.phoebus.channelfinder.service.AuthorizationService.ROLES;
-import org.phoebus.channelfinder.service.model.archiver.ChannelProcessorInfo;
+import org.phoebus.channelfinder.service.model.processor.ProcessorInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
 
 @Service
 public class ChannelProcessorService {
@@ -80,8 +81,12 @@ public class ChannelProcessorService {
     return channelProcessors.size();
   }
 
-  public List<ChannelProcessorInfo> getProcessorsInfo() {
+  public List<ProcessorInfo> getProcessorsInfo() {
     return channelProcessors.stream().map(ChannelProcessor::processorInfo).toList();
+  }
+
+  public ProcessorInfo getProcessorInfo(String name) {
+    return findProcessor(name).processorInfo();
   }
 
   public void setProcessorEnabled(String name, boolean enabled) {
@@ -92,8 +97,8 @@ public class ChannelProcessorService {
     findProcessor(name).refresh();
   }
 
-  public void setProcessorProperty(String name, String key, String value) {
-    findProcessor(name).setProperty(key, value);
+  public void patchProcessorConfig(String name, JsonNode config) {
+    findProcessor(name).applyConfig(config);
   }
 
   private ChannelProcessor findProcessor(String name) {

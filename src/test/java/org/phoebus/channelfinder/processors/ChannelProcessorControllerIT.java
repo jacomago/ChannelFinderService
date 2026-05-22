@@ -2,6 +2,7 @@ package org.phoebus.channelfinder.processors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -101,15 +102,16 @@ class ChannelProcessorControllerIT {
   }
 
   @Test
-  void testSetProcessorProperty() throws Exception {
+  void testPatchProcessorConfig() throws Exception {
     mockMvc
         .perform(
-            put("/"
-                    + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
-                    + "/processor/AAChannelProcessor/property/autoPauseOptions")
+            patch(
+                    "/"
+                        + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
+                        + "/processor/AAChannelProcessor/info/config")
                 .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
-                .contentType("text/plain")
-                .content("pvStatus"))
+                .contentType("application/json")
+                .content("{\"autoPauseOn\":[\"pvStatus\"]}"))
         .andExpect(status().isOk());
   }
 
@@ -125,15 +127,16 @@ class ChannelProcessorControllerIT {
   }
 
   @Test
-  void testSetProcessorPropertyNotFound() throws Exception {
+  void testPatchProcessorConfigNotFound() throws Exception {
     mockMvc
         .perform(
-            put("/"
-                    + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
-                    + "/processor/NonExistent/property/autoPauseOptions")
+            patch(
+                    "/"
+                        + CFResourceDescriptors.CHANNEL_PROCESSOR_RESOURCE_URI
+                        + "/processor/NonExistent/info/config")
                 .header(HttpHeaders.AUTHORIZATION, AUTHORIZATION)
-                .contentType("text/plain")
-                .content("pvStatus"))
+                .contentType("application/json")
+                .content("{\"autoPauseOn\":[\"pvStatus\"]}"))
         .andExpect(status().isNotFound());
   }
 }
