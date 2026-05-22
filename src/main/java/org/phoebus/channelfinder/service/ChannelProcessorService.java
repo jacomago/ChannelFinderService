@@ -17,10 +17,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ChannelProcessorService {
@@ -83,17 +85,23 @@ public class ChannelProcessorService {
   }
 
   public void setProcessorEnabled(String name, boolean enabled) {
-    channelProcessors.stream()
-        .filter(p -> Objects.equals(p.processorInfo().name(), name))
-        .findFirst()
-        .ifPresent(p -> p.setEnabled(enabled));
+    findProcessor(name).setEnabled(enabled);
   }
 
   public void refreshProcessor(String name) {
-    channelProcessors.stream()
+    findProcessor(name).refresh();
+  }
+
+  public void setProcessorProperty(String name, String key, String value) {
+    findProcessor(name).setProperty(key, value);
+  }
+
+  private ChannelProcessor findProcessor(String name) {
+    return channelProcessors.stream()
         .filter(p -> Objects.equals(p.processorInfo().name(), name))
         .findFirst()
-        .ifPresent(ChannelProcessor::refresh);
+        .orElseThrow(
+            () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No processor named: " + name));
   }
 
   /**

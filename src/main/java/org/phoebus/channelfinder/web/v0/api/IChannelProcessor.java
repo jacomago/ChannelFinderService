@@ -16,6 +16,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -97,7 +98,6 @@ public interface IChannelProcessor {
   @Operation(summary = "Set if the processor is enabled or not")
   @PutMapping(
       value = "/processor/{processorName}/enabled",
-      produces = {"application/json"},
       consumes = {"application/json"})
   void setProcessorEnabled(
       @PathVariable("processorName") String processorName,
@@ -106,8 +106,19 @@ public interface IChannelProcessor {
           Boolean enabled);
 
   @Operation(summary = "Trigger an immediate refresh of cached state for the named processor")
-  @PutMapping(
-      value = "/processor/{processorName}/refresh",
-      produces = {"application/json"})
+  @PutMapping(value = "/processor/{processorName}/refresh")
   void refreshProcessor(@PathVariable("processorName") String processorName);
+
+  @Operation(
+      summary = "Set a runtime-configurable property on the named processor",
+      description =
+          "For AAChannelProcessor: keys are autoPauseOptions, postSupportArchivers,"
+              + " defaultArchivers. Pass a comma-separated value, or empty string to clear.")
+  @PutMapping(
+      value = "/processor/{processorName}/property/{key}",
+      consumes = {"text/plain"})
+  void setProcessorProperty(
+      @PathVariable("processorName") String processorName,
+      @PathVariable("key") String key,
+      @RequestBody String value);
 }

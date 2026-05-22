@@ -11,6 +11,7 @@ import org.phoebus.channelfinder.exceptions.TagNotFoundException;
 import org.phoebus.channelfinder.exceptions.TagValidationException;
 import org.phoebus.channelfinder.exceptions.UnauthorizedException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -92,6 +93,12 @@ public class V0ExceptionHandler {
   public ResponseStatusException handleStorage(RepositoryException ex) {
     logger.log(Level.SEVERE, ex.getMessage(), ex);
     return new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+  }
+
+  @ExceptionHandler(ResponseStatusException.class)
+  public ResponseEntity<String> handleResponseStatus(ResponseStatusException ex) {
+    logger.log(Level.FINE, ex::getMessage);
+    return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
   }
 
   @ExceptionHandler(Exception.class)

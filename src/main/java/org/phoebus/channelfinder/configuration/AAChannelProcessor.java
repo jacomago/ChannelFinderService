@@ -55,7 +55,7 @@ public class AAChannelProcessor implements ChannelProcessor {
   private Map<String, String> aaURLs;
 
   @Value("${aa.default_alias:default}")
-  private List<String> defaultArchivers;
+  private volatile List<String> defaultArchivers;
 
   @Value("${aa.pva:false}")
   private boolean aaPVA;
@@ -105,6 +105,22 @@ public class AAChannelProcessor implements ChannelProcessor {
   @Override
   public void refresh() {
     refreshPolicies();
+  }
+
+  @Override
+  public void setProperty(String key, String value) {
+    List<String> parsed =
+        Arrays.stream(value.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toList());
+    switch (key) {
+      case "autoPauseOptions" -> autoPauseOptions = parsed;
+      case "postSupportArchivers" -> postSupportArchivers = parsed;
+      case "defaultArchivers" -> defaultArchivers = parsed;
+      default ->
+          logger.log(Level.FINE, "AAChannelProcessor: unknown property ''{0}''; ignoring.", key);
+    }
   }
 
   private void refreshPolicies() {

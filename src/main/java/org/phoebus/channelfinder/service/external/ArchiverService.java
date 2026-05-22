@@ -178,8 +178,12 @@ public class ArchiverService {
   }
 
   public long configureAA(Map<ArchiveAction, List<ArchivePVOptions>> archivePVS, String aaURL) {
-    logger.log(Level.FINE, () -> String.format("Configuring actions for %d PVs at archiver %s.",
-        archivePVS.values().stream().mapToLong(List::size).sum(), aaURL));
+    logger.log(
+        Level.FINE,
+        () ->
+            String.format(
+                "Configuring actions for %d PVs at archiver %s.",
+                archivePVS.values().stream().mapToLong(List::size).sum(), aaURL));
     long count = 0;
     // Don't request to archive an empty list.
     if (archivePVS.isEmpty()) {

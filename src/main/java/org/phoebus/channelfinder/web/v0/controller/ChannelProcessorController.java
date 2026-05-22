@@ -56,4 +56,9 @@ public class ChannelProcessorController implements IChannelProcessor {
   public void refreshProcessor(String processorName) {
     channelProcessorService.refreshProcessor(processorName);
   }
+
+  @Override
+  public void setProcessorProperty(String processorName, String key, String value) {
+    channelProcessorService.setProcessorProperty(processorName, key, value);
+  }
 }

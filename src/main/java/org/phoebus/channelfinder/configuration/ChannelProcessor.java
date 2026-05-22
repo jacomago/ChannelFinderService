@@ -17,4 +17,10 @@ public interface ChannelProcessor {
 
   /** Trigger an immediate refresh of any cached state (e.g., archiver policies). Default: no-op. */
   default void refresh() {}
+
+  /**
+   * Set a named runtime-configurable property. Unrecognized keys are silently ignored. An empty
+   * value clears the option (treated as an empty list for list-valued properties).
+   */
+  default void setProperty(String key, String value) {}
 }
