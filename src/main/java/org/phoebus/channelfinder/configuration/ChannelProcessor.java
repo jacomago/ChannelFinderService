@@ -14,4 +14,7 @@ public interface ChannelProcessor {
   ChannelProcessorInfo processorInfo();
 
   long process(List<Channel> channels) throws JacksonException;
+
+  /** Trigger an immediate refresh of any cached state (e.g., archiver policies). Default: no-op. */
+  default void refresh() {}
 }

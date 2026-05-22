@@ -104,4 +104,10 @@ public interface IChannelProcessor {
       @Parameter(description = "Value of enabled to set, default value: true")
           @RequestParam(required = false, name = "enabled", defaultValue = "true")
           Boolean enabled);
+
+  @Operation(summary = "Trigger an immediate refresh of cached state for the named processor")
+  @PutMapping(
+      value = "/processor/{processorName}/refresh",
+      produces = {"application/json"})
+  void refreshProcessor(@PathVariable("processorName") String processorName);
 }
